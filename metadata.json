@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "Delivery Note Processing System",
+  "description": "Automated delivery note processing and management system with plant selection and PDF generation.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }

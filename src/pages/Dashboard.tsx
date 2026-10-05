@@ -2,6 +2,7 @@ import { useEffect, useState, FormEvent, ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { usePlant } from '../contexts/PlantContext';
 import { LayoutDashboard, LogOut, FileUp, FileText, FileSearch, ArrowRight, X, Trash2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -10,6 +11,7 @@ import { Card, CardContent } from '../components/ui/Card';
 
 export default function Dashboard() {
   const { user, profile, profileError, loading: authLoading, signOut } = useAuth();
+  const { activePlant } = usePlant();
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,7 +30,14 @@ export default function Dashboard() {
       return;
     }
 
+    if (!activePlant?.id) {
+      setLoading(false);
+      return;
+    }
+
     if (profile?.organization_id) {
+      setLoading(true);
+      setJobs([]);
       fetchJobs();
       
       // Optionally subscribe to realtime updates on jobs for this organization
@@ -54,10 +63,13 @@ export default function Dashboard() {
     } else {
       setLoading(false);
     }
-  }, [user, profile, authLoading, navigate]);
+  }, [user, profile, authLoading, activePlant?.id, navigate]);
 
   const fetchJobs = async () => {
-    if (!profile?.organization_id) return;
+    if (!profile?.organization_id || !activePlant?.id) {
+      setLoading(false);
+      return;
+    }
     setJobsError(null);
     try {
       const { data, error } = await supabase
@@ -67,6 +79,7 @@ export default function Dashboard() {
           delivery_notes ( * )
         `)
         .eq('organization_id', profile.organization_id)
+        .eq('plant_id', activePlant.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -102,6 +115,11 @@ export default function Dashboard() {
       return;
     }
 
+    if (!activePlant?.id) {
+      setUploadError('No plant selected. Please choose a plant first.');
+      return;
+    }
+
     setUploading(true);
     setUploadError(null);
     try {
@@ -127,6 +145,7 @@ export default function Dashboard() {
         .insert({
           created_by: user.id,
           organization_id: profile.organization_id,
+          plant_id: activePlant.id,
           source_filename: selectedFile.name,
           source_file_path: fileUrl,
           status: 'uploaded',
@@ -267,6 +286,21 @@ export default function Dashboard() {
               <p className="font-medium text-gray-900">{profile?.organizations?.name || 'Loading...'}</p>
               <p className="text-gray-500">{user?.email}</p>
             </div>
+            {activePlant && (
+              <div className="flex items-center space-x-2 pl-4 border-l border-gray-200">
+                <span className="text-xs text-gray-600 font-medium">
+                  {activePlant.plant_code} - {activePlant.name}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate('/select-plant')}
+                  className="text-xs text-blue-600 hover:text-blue-700 h-8 px-2"
+                >
+                  Change plant
+                </Button>
+              </div>
+            )}
             <Button variant="ghost" size="sm" onClick={handleLogout} className="text-gray-500 hover:text-gray-900">
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out
@@ -279,7 +313,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-8">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Recent Jobs</h2>
-            <p className="text-sm text-gray-500 mt-1">Manage and view your organization's delivery notes</p>
+            <p className="text-sm text-gray-500 mt-1">Manage and view delivery notes for the selected plant</p>
           </div>
           <div className="flex space-x-3">
             <Button onClick={() => {
